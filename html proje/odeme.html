@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Ödeme Oluştur</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .pos-container { max-width: 900px; margin: 40px auto; background: #fff; border-radius: 16px; box-shadow: 0 2px 24px #0002; padding: 32px 24px; }
+        .pos-row { display: flex; flex-wrap: wrap; gap: 32px; }
+        .pos-products { flex: 1 1 320px; min-width: 300px; }
+        .pos-cart { flex: 1 1 320px; min-width: 300px; background: #f6f6f6; border-radius: 12px; padding: 24px 18px; }
+        .pos-product-btn { width: 100%; margin-bottom: 12px; font-size: 1.2rem; padding: 18px 0; border-radius: 8px; border: 1px solid #ddd; background: #f8f9fa; transition: background .2s; }
+        .pos-product-btn:hover, .pos-product-btn:focus { background: #e9ecef; }
+        .pos-cart-list { max-height: 320px; overflow-y: auto; margin-bottom: 16px; }
+        .pos-cart-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .pos-cart-item input { width: 60px; text-align: center; }
+        .pos-cart-item .remove-btn { color: #fff; background: #dc3545; border: none; border-radius: 4px; padding: 2px 10px; font-size: 1.1rem; }
+        .pos-total { font-size: 1.5rem; font-weight: bold; text-align: right; margin-bottom: 16px; }
+        @media (max-width: 900px) {
+            .pos-row { flex-direction: column; gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="pos-container">
+        <div class="mb-2 text-end text-muted d-flex justify-content-between align-items-center">
+            <span id="girisYapanKisi"></span>
+            <div>
+                <a href="urunler.html" class="btn btn-outline-secondary btn-sm me-2" style="font-size:13px;">Ürün Paneli</a>
+                <button id="logoutBtn" class="btn btn-outline-danger btn-sm" style="font-size:13px;" onclick="cikisYap()">Çıkış</button>
+            </div>
+        </div>
+        <h2 class="mb-4 text-center">POS Satış Ekranı</h2>
+        <div class="pos-row">
+            <div class="pos-products">
+                <h5>Ürünler</h5>
+                <div id="posProductList"></div>
+            </div>
+            <div class="pos-cart">
+                <h5>Sepet</h5>
+                <div id="posCartList" class="pos-cart-list"></div>
+                <div class="pos-total">Toplam: <span id="toplamTutar">0.00</span> TL</div>
+                <button onclick="odemeOlustur()" class="btn btn-primary w-100" style="font-size:1.2rem; padding:14px 0;">Ödeme Oluştur</button>
+                <div class="sonuc mt-3" id="sonuc"></div>
+            </div>
+        </div>
+        <div class="mt-4">
+            <h5>Müşteri Bilgileri</h5>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <input type="text" id="firstName" class="form-control" placeholder="Ad" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" id="lastName" class="form-control" placeholder="Soyad" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="email" id="payerEmail" class="form-control" placeholder="E-posta" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" id="payerPhone" class="form-control" placeholder="Telefon" required>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function cikisYap() {
+            localStorage.removeItem('paythor_token');
+            localStorage.removeItem('paythor_user_email');
+            window.location.href = "login.html";
+        }
+        const products = [
+            { name: "Defter", price: 25.00 },
+            { name: "Kalem", price: 7.50 },
+            { name: "Silgi", price: 3.00 },
+            { name: "Cetvel", price: 6.00 },
+            { name: "Kalemlik", price: 30.00 },
+            { name: "Pastel Boya", price: 45.00 },
+            { name: "Makas", price: 12.00 },
+            { name: "Yapıştırıcı", price: 8.00 },
+            { name: "Klasör", price: 18.00 },
+            { name: "Ders Programı", price: 2.50 }
+        ];
+        const productImages = {
+            "Defter": "gorseller/notebook-1076812_1280.jpg",
+            "Kalem": "gorseller/ballpoint-pen-1711884_1280.png",
+            "Silgi": "gorseller/eraser-307478_1280.png",
+            "Cetvel": "gorseller/line-2393977_1280.png",
+            "Kalemlik": "gorseller/ChatGPT Image 1 Tem 2025 14_12_00.png",
+            "Pastel Boya": "gorseller/colorful-1296465_1280.png ",
+            "Makas": "gorseller/avatar-2029577_1280.png",
+            "Yapıştırıcı": "gorseller/glue-34106_1280.png",
+            "Klasör": "gorseller/ChatGPT Image 1 Tem 2025 14_22_58.png",
+            "Ders Programı": "gorseller/ChatGPT Image 1 Tem 2025 14_23_27.png",
+            "Mıknatıs": "gorseller/magnet-7154687_1280.png"
+        };
+        function getUrunler() {
+            return JSON.parse(localStorage.getItem('urunler')) || products;
+        }
+        let posCart = [];
+        function renderProductList() {
+            const urunler = getUrunler();
+            const list = document.getElementById('posProductList');
+            list.innerHTML = '';
+            urunler.forEach((p, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'pos-product-btn';
+                btn.innerHTML = `<img src="${productImages[p.name]||'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}" alt="${p.name}" style="height:32px;width:32px;object-fit:contain;margin-right:12px;vertical-align:middle;"> ${p.name} - ${p.price.toFixed(2)} TL`;
+                btn.onclick = () => addToCart(p);
+                list.appendChild(btn);
+            });
+        }
+        function renderCart() {
+            const list = document.getElementById('posCartList');
+            list.innerHTML = '';
+            posCart.forEach((item, i) => {
+                const imgSrc = productImages[item.name] || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+                const div = document.createElement('div');
+                div.className = 'pos-cart-item';
+                div.innerHTML = `
+                    <img src="${imgSrc}" alt="${item.name}" style="height:32px;width:32px;object-fit:contain;margin-right:8px;vertical-align:middle;">
+                    <span style="flex:1;">${item.name}</span>
+                    <input type="number" min="1" value="${item.quantity}" style="width:60px;" onchange="updateCartQuantity(${i}, this.value)">
+                    <span>${item.price.toFixed(2)} TL</span>
+                    <button class="remove-btn" onclick="removeFromCart(${i})">×</button>
+                `;
+                list.appendChild(div);
+            });
+            updateTotal();
+        }
+        function addToCart(product) {
+            const idx = posCart.findIndex(x => x.name === product.name);
+            if(idx > -1) {
+                posCart[idx].quantity++;
+            } else {
+                posCart.push({ ...product, quantity: 1 });
+            }
+            renderCart();
+        }
+        function updateCartQuantity(i, val) {
+            posCart[i].quantity = Math.max(1, parseInt(val)||1);
+            renderCart();
+        }
+        function removeFromCart(i) {
+            posCart.splice(i,1);
+            renderCart();
+        }
+        function updateTotal() {
+            let toplam = 0;
+            posCart.forEach(item => toplam += item.price * item.quantity);
+            document.getElementById('toplamTutar').innerText = toplam.toFixed(2);
+        }
+        document.addEventListener("DOMContentLoaded", function() {
+            let token = localStorage.getItem('paythor_token');
+            let userEmail = localStorage.getItem('paythor_user_email');
+            if (!token || token === '••••••' || token.length < 10) {
+                alert('Bu sayfayı görüntülemek için önce giriş yapmalısınız.');
+                window.location.href = "login.html";
+                return;
+            }
+            document.getElementById('girisYapanKisi').innerText =
+                'Giriş yapan: ' + (userEmail || 'Bilinmeyen kullanıcı');
+            renderProductList();
+            renderCart();
+        });
+        function odemeOlustur() {
+            document.getElementById('sonuc').innerHTML = '<div class="alert alert-info">Ödeme oluşturuluyor...</div>';
+            const firstName = document.getElementById('firstName').value;
+            const lastName = document.getElementById('lastName').value;
+            const payerEmail = document.getElementById('payerEmail').value;
+            const payerPhone = document.getElementById('payerPhone').value;
+            const cart = posCart.map(item => ({
+                id: 'PRD-' + Date.now() + Math.floor(Math.random()*1000),
+                name: item.name,
+                type: 'product',
+                price: item.price.toFixed(2),
+                quantity: item.quantity
+            }));
+            const amount = cart.reduce((acc, item) => acc + (parseFloat(item.price)*item.quantity), 0).toFixed(2);
+            if (!firstName || !lastName || !payerEmail || !payerPhone || cart.length === 0) {
+                document.getElementById('sonuc').innerHTML = '<div class="alert alert-danger">Tüm müşteri alanlarını ve en az bir ürün seçin.</div>';
+                return;
+            }
+            let PAYTHOR_TOKEN = localStorage.getItem('paythor_token');
+            if (PAYTHOR_TOKEN) PAYTHOR_TOKEN = PAYTHOR_TOKEN.trim();
+            if (!PAYTHOR_TOKEN || PAYTHOR_TOKEN === '••••••' || PAYTHOR_TOKEN.length < 10) {
+                document.getElementById('sonuc').innerHTML = '<div class="alert alert-danger">Oturum bulunamadı. Lütfen önce giriş yapın ve hesabınızın aktif olduğundan emin olun.</div>';
+                setTimeout(() => { window.location.href = "login.html"; }, 1500);
+                return;
+            }
+            fetch("https://api.paythor.com/payment/create", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + PAYTHOR_TOKEN
+                },
+                body: JSON.stringify({
+                    payment: {
+                        amount: amount,
+                        currency: "TRY",
+                        buyer_fee: "0",
+                        method: "creditcard",
+                        merchant_reference: "ORDER-" + Date.now()
+                    },
+                    payer: {
+                        first_name: firstName,
+                        last_name: lastName,
+                        email: payerEmail,
+                        phone: payerPhone,
+                        address: {
+                            line_1: "123 Main St",
+                            city: "Istanbul",
+                            state: "Istanbul",
+                            postal_code: "07050",
+                            country: "TR"
+                        },
+                        ip: "127.0.0.1"
+                    },
+                    order: {
+                        cart: cart,
+                        shipping: {
+                            first_name: firstName,
+                            last_name: lastName,
+                            phone: payerPhone,
+                            email: payerEmail,
+                            address: {
+                                line_1: "123 Main St",
+                                city: "Istanbul",
+                                state: "Istanbul",
+                                postal_code: "07050",
+                                country: "TR"
+                            }
+                        },
+                        invoice: {
+                            id: "cart_hash_" + Date.now(),
+                            first_name: firstName,
+                            last_name: lastName,
+                            price: amount,
+                            quantity: 1
+                        }
+                    }
+                })
+            })
+            .then(async response => {
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    data = { message: 'API beklenmeyen bir yanıt verdi.' };
+                }
+                if (data && (data.status === "success" || data.status === true) && data.data && data.data.payment_link) {
+                    document.getElementById('sonuc').innerHTML =
+                        '<div class="alert alert-success text-break" style="word-break:break-all;overflow-wrap:anywhere;">Ödeme linki oluşturuldu:<br>' +
+                        '<a class="link" href="' + data.data.payment_link + '" target="_blank" style="display:inline-block;max-width:100%;word-break:break-all;overflow-wrap:anywhere;">' + data.data.payment_link + '</a><br>Bu linki paylaşabilirsiniz.</div>';
+                } else {
+                    let hata = (data && (data.message || data.error)) ? (data.message || data.error) : "API beklenmeyen bir yanıt verdi.";
+                    if (data && data.details) {
+                        if (Array.isArray(data.details)) {
+                            hata += '<br>' + data.details.join('<br>');
+                        } else {
+                            hata += '<br>' + data.details;
+                        }
+                    }
+                    document.getElementById('sonuc').innerHTML = '<div class="alert alert-danger">Hata: ' + hata + '</div>';
+                }
+            })
+            .catch(err => {
+                document.getElementById('sonuc').innerHTML = '<div class="alert alert-danger">Hata: ' + err + '</div>';
+            });
+        }
+    </script>
+</body>
+</html>
